@@ -40,12 +40,42 @@ async function remoteok() {
   }));
 }
 
+// JSearch (RapidAPI) aggregates LinkedIn, Indeed, Glassdoor etc. The free tier is small, so results are cached for 12h.
+const JSEARCH_QUERIES = ["VAT manager software", "indirect tax manager SaaS", "tax counsel technology company"];
+let jsearchCache = { at: 0, jobs: [] };
+const JSEARCH_TTL = 12 * 60 * 60 * 1000;
+
+async function jsearch() {
+  const key = process.env.JSEARCH_API_KEY;
+  if (!key) return [];
+  if (Date.now() - jsearchCache.at < JSEARCH_TTL) return jsearchCache.jobs;
+  const where = process.env.JSEARCH_LOCATION || "Europe";
+  const lists = await Promise.all(JSEARCH_QUERIES.map(async (q) => {
+    const url = `https://jsearch.p.rapidapi.com/search?query=${encodeURIComponent(`${q} in ${where}`)}&page=1&num_pages=1&date_posted=month`;
+    const res = await fetch(url, {
+      headers: { "X-RapidAPI-Key": key, "X-RapidAPI-Host": "jsearch.p.rapidapi.com" },
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) throw new Error(`JSearch -> ${res.status}`);
+    return (await res.json()).data || [];
+  }));
+  const jobs = lists.flat().map((j) => ({
+    id: `jsearch-${j.job_id}`, source: j.job_publisher || "JSearch", title: j.job_title, company: j.employer_name,
+    location: [j.job_city, j.job_country].filter(Boolean).join(", ") || "n/a", remote: !!j.job_is_remote,
+    url: j.job_apply_link, posted: j.job_posted_at_datetime_utc,
+    salary: j.job_min_salary ? `${j.job_salary_currency || ""} ${j.job_min_salary} - ${j.job_max_salary}`.trim() : "",
+    description: j.job_description || "",
+  }));
+  jsearchCache = { at: Date.now(), jobs };
+  return jobs;
+}
+
 let cache = { at: 0, jobs: [], errors: [] };
 const TTL = 30 * 60 * 1000;
 
 export async function loadJobs(force = false) {
   if (!force && Date.now() - cache.at < TTL && cache.jobs.length) return cache;
-  const results = await Promise.allSettled([remotive(), arbeitnow(), remoteok()]);
+  const results = await Promise.allSettled([remotive(), arbeitnow(), remoteok(), jsearch()]);
   const errors = results.filter((r) => r.status === "rejected").map((r) => String(r.reason?.message || r.reason));
   const seen = new Set();
   const jobs = [];
