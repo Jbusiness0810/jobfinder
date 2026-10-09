@@ -1,0 +1,11 @@
+{
+  "name": "jobfinder",
+  "version": "1.0.0",
+  "description": "Job search tuned for in-house VAT / indirect tax leadership roles at tech companies",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": { "node": ">=20" }
+}

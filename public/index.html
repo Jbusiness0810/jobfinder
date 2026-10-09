@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VAT Job Finder</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>VAT Job Finder</h1>
+  <p>In-house indirect tax and tax legal roles at software and tech companies, ranked for your profile.</p>
+</header>
+<main>
+  <section class="filters">
+    <input id="q" type="search" placeholder="Filter by keyword, company or location">
+    <label>Min match <output id="minOut">30</output>
+      <input id="min" type="range" min="0" max="90" step="5" value="30"></label>
+    <label><input id="inhouse" type="checkbox" checked> In-house only</label>
+    <label><input id="tech" type="checkbox"> Tech employers only</label>
+    <label><input id="remote" type="checkbox"> Remote only</label>
+    <label><input id="saved" type="checkbox"> Saved only</label>
+    <button id="refresh" type="button">Refresh</button>
+  </section>
+  <p id="status" role="status">Loading jobs...</p>
+  <ul id="results"></ul>
+
+  <section class="elsewhere">
+    <h2>Search the big boards with tuned queries</h2>
+    <p>Free job feeds cover only part of the market. These open pre-built searches on the major boards.</p>
+    <div class="loc"><label>Location <input id="loc" value="Europe"></label></div>
+    <div id="links"></div>
+  </section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
