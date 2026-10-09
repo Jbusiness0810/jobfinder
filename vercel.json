@@ -1,0 +1,3 @@
+{
+  "functions": { "api/jobs.js": { "maxDuration": 30 } }
+}
