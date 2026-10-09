@@ -1,4 +1,5 @@
 import { scoreJob, strip } from "./scoring.js";
+import { atsJobs } from "./ats.js";
 
 const UA = { "User-Agent": "Mozilla/5.0 (jobfinder)" };
 const QUERIES = ["vat", "indirect tax", "sales tax", "tax manager", "tax counsel", "tax legal", "tax"];
@@ -40,9 +41,9 @@ async function remoteok() {
   }));
 }
 
-// JSearch (OpenWeb Ninja) aggregates LinkedIn, Indeed, Glassdoor etc. The free tier is small, so results are cached for 24h.
+// JSearch (OpenWeb Ninja) aggregates LinkedIn, Indeed, Glassdoor etc. The free tier is small, so results are cached for 48h.
 // US employers say "indirect tax" or "sales and use tax" more than "VAT", so the queries cover both.
-const JSEARCH_QUERIES = ["indirect tax VAT manager software", "tax counsel technology company"];
+const JSEARCH_QUERIES = ["indirect tax VAT manager software", "tax counsel technology company", "sales and use tax manager SaaS"];
 // Target markets: Irvine, CA (onsite or hybrid) and US-wide remote.
 const JSEARCH_SEARCHES = [
   (q) => `query=${encodeURIComponent(`${q} in Irvine, California`)}&country=us&radius=50`,
@@ -50,7 +51,7 @@ const JSEARCH_SEARCHES = [
 ];
 const US_LOCATION = /irvine|california|\bca\b|usa|united states|\bus\b|u\.s\.|americas|north america|worldwide|anywhere|^remote$/i;
 let jsearchCache = { at: 0, jobs: [] };
-const JSEARCH_TTL = 24 * 60 * 60 * 1000;
+const JSEARCH_TTL = 48 * 60 * 60 * 1000;
 
 async function jsearch() {
   const key = (process.env.JSEARCH_API_KEY || "").trim();
@@ -95,7 +96,7 @@ const TTL = 30 * 60 * 1000;
 
 export async function loadJobs(force = false) {
   if (!force && Date.now() - cache.at < TTL && cache.jobs.length) return cache;
-  const results = await Promise.allSettled([remotive(), remoteok(), jsearch()]);
+  const results = await Promise.allSettled([remotive(), remoteok(), jsearch(), atsJobs()]);
   const errors = results.filter((r) => r.status === "rejected").map((r) => String(r.reason?.message || r.reason));
   const seen = new Set();
   const jobs = [];
@@ -109,7 +110,7 @@ export async function loadJobs(force = false) {
     jobs.push({
       id: j.id, source: j.source, title: j.title, company: j.company, location: j.location, remote: j.remote,
       url: j.url, posted: j.posted, salary: j.salary, score: s.score, why: s.why, tags: s.tags,
-      inHouse: s.inHouse, tech: s.tech, snippet: strip(j.description).slice(0, 400),
+      inHouse: s.inHouse, tech: s.tech || !!j.techEmployer, snippet: strip(j.description).slice(0, 400),
     });
   }
   jobs.sort((a, b) => b.score - a.score);

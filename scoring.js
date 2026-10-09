@@ -30,6 +30,7 @@ const BODY_SIGNALS = [
 ];
 const TECH = /\b(saas|software|cloud|platform|fintech|ai\b|artificial intelligence|b2b|digital|technology|tech company|app|marketplace|subscription|api|payments?|e-?commerce|startup|scale-?up)\b/i;
 const FIRM = /\b(advisory|deloitte|pwc|pricewaterhouse|kpmg|ernst|ey\b|bdo|grant thornton|rsm|mazars|baker tilly|crowe|forvis|big ?4|law firm|solicitors|accounting firm|advisory firm|tax consult|consulting firm|kanzlei|steuerberat|wirtschaftspr)/i;
+const FIRM_NAMES = /^(ryan|andersen|cohnreznick|marcum|eide bailly|cbiz|moss adams|plante|withum|baker mckenzie|sovos tax services)\b|ryan,? llc|kpmg|deloitte|pwc|ernst|\bey\b|grant thornton|\bbdo\b|rsm\b|crowe|forvis/i;
 const NOT_RELEVANT = /\b(bookkeeper|payroll|tax preparer|tax return preparer|personal tax|accounts (payable|receivable)|cashier)\b/i;
 
 export function scoreJob(job) {
@@ -55,7 +56,7 @@ export function scoreJob(job) {
   if (techHit) { score += 12; why.push("Tech / software employer"); }
 
   const tags = [];
-  const firm = FIRM.test(company) || FIRM.test(body.slice(0, 1200));
+  const firm = FIRM.test(company) || FIRM.test(body.slice(0, 1200)) || /consult|advisory/i.test(title) || FIRM_NAMES.test(company);
   if (firm) { score -= 25; tags.push("Firm / advisory"); }
   else { score += 10; tags.push("Likely in-house"); }
   if (NOT_RELEVANT.test(title)) score -= 40;

@@ -25,3 +25,8 @@ test("junior roles are penalised", () => {
   const junior = scoreJob({ title: "VAT Intern", company: "A", description: "" });
   assert.ok(junior.score < senior.score);
 });
+
+test("consulting titles and known firms are treated as advisory", () => {
+  assert.equal(scoreJob({ title: "Senior Manager, Tax Technology Consulting", company: "Ryan", description: "software" }).inHouse, false);
+  assert.equal(scoreJob({ title: "Indirect Tax Manager", company: "Stripe", description: "software" }).inHouse, true);
+});
