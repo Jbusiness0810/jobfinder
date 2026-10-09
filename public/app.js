@@ -49,7 +49,7 @@ async function load(refresh) {
     const d = await r.json();
     jobs = d.jobs;
     render();
-    if (d.errors.length) $("status").textContent += ` (${d.errors.length} source(s) unavailable)`;
+    if (d.errors.length) $("status").textContent += ` (source error: ${d.errors.join("; ")})`;
   } catch {
     $("status").textContent = "Could not load jobs. Is the server running?";
   }

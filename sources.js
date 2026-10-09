@@ -57,15 +57,23 @@ async function jsearch() {
   if (!key) return [];
   if (Date.now() - jsearchCache.at < JSEARCH_TTL) return jsearchCache.jobs;
   const calls = JSEARCH_QUERIES.flatMap((q) => JSEARCH_SEARCHES.map((build) => build(q)));
-  const lists = await Promise.all(calls.map(async (params) => {
-    const url = `https://jsearch.p.rapidapi.com/search?${params}&page=1&num_pages=1&date_posted=month`;
-    const res = await fetch(url, {
-      headers: { "X-RapidAPI-Key": key, "X-RapidAPI-Host": "jsearch.p.rapidapi.com" },
-      signal: AbortSignal.timeout(20000),
-    });
-    if (!res.ok) throw new Error(`JSearch -> ${res.status}`);
-    return (await res.json()).data || [];
-  }));
+  // Sequential with a short pause: RapidAPI free plans often rate-limit bursts (429).
+  const lists = [];
+  const failures = [];
+  for (const params of calls) {
+    try {
+      const res = await fetch(`https://jsearch.p.rapidapi.com/search?${params}&page=1&num_pages=1&date_posted=month`, {
+        headers: { "X-RapidAPI-Key": key, "X-RapidAPI-Host": "jsearch.p.rapidapi.com" },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status} ${(await res.text()).slice(0, 120)}`);
+      lists.push((await res.json()).data || []);
+    } catch (e) {
+      failures.push(e.message);
+    }
+    await new Promise((r) => setTimeout(r, 1100));
+  }
+  if (!lists.length) throw new Error(`JSearch failed: ${failures[0]}`);
   const jobs = lists.flat().map((j) => ({
     id: `jsearch-${j.job_id}`, source: j.job_publisher || "JSearch", title: j.job_title, company: j.employer_name,
     location: [j.job_city, j.job_country].filter(Boolean).join(", ") || "n/a", remote: !!j.job_is_remote,
@@ -73,7 +81,7 @@ async function jsearch() {
     salary: j.job_min_salary ? `${j.job_salary_currency || ""} ${j.job_min_salary} - ${j.job_max_salary}`.trim() : "",
     description: j.job_description || "",
   }));
-  jsearchCache = { at: Date.now(), jobs };
+  if (!failures.length) jsearchCache = { at: Date.now(), jobs };
   return jobs;
 }
 
