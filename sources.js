@@ -53,8 +53,8 @@ let jsearchCache = { at: 0, jobs: [] };
 const JSEARCH_TTL = 24 * 60 * 60 * 1000;
 
 async function jsearch() {
-  const key = process.env.JSEARCH_API_KEY;
-  if (!key) return [];
+  const key = (process.env.JSEARCH_API_KEY || "").trim();
+  if (!key) throw new Error("JSEARCH_API_KEY is not set in this deployment's environment");
   if (Date.now() - jsearchCache.at < JSEARCH_TTL) return jsearchCache.jobs;
   const calls = JSEARCH_QUERIES.flatMap((q) => JSEARCH_SEARCHES.map((build) => build(q)));
   // Sequential with a short pause: RapidAPI free plans often rate-limit bursts (429).
