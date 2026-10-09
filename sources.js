@@ -60,18 +60,23 @@ async function jsearch() {
   // Sequential with a short pause: RapidAPI free plans often rate-limit bursts (429).
   const lists = [];
   const failures = [];
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   for (const params of calls) {
-    try {
-      const res = await fetch(`https://jsearch.p.rapidapi.com/search?${params}&page=1&num_pages=1&date_posted=month`, {
-        headers: { "X-RapidAPI-Key": key, "X-RapidAPI-Host": "jsearch.p.rapidapi.com" },
-        signal: AbortSignal.timeout(15000),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status} ${(await res.text()).slice(0, 120)}`);
-      lists.push((await res.json()).data || []);
-    } catch (e) {
-      failures.push(e.message);
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const res = await fetch(`https://jsearch.p.rapidapi.com/search?${params}&page=1&num_pages=1&date_posted=month`, {
+          headers: { "X-RapidAPI-Key": key, "X-RapidAPI-Host": "jsearch.p.rapidapi.com" },
+          signal: AbortSignal.timeout(15000),
+        });
+        if (res.status === 429 && attempt < 2) { await sleep(3000 * (attempt + 1)); continue; }
+        if (!res.ok) throw new Error(`HTTP ${res.status} ${(await res.text()).slice(0, 120)}`);
+        lists.push((await res.json()).data || []);
+      } catch (e) {
+        failures.push(e.message);
+      }
+      break;
     }
-    await new Promise((r) => setTimeout(r, 1100));
+    await sleep(2000);
   }
   if (!lists.length) throw new Error(`JSearch failed: ${failures[0]}`);
   const jobs = lists.flat().map((j) => ({
