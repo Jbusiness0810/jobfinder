@@ -40,7 +40,7 @@ async function remoteok() {
   }));
 }
 
-// JSearch (RapidAPI) aggregates LinkedIn, Indeed, Glassdoor etc. The free tier is small, so results are cached for 24h.
+// JSearch (OpenWeb Ninja) aggregates LinkedIn, Indeed, Glassdoor etc. The free tier is small, so results are cached for 24h.
 // US employers say "indirect tax" or "sales and use tax" more than "VAT", so the queries cover both.
 const JSEARCH_QUERIES = ["indirect tax VAT manager software", "tax counsel technology company"];
 // Target markets: Irvine, CA (onsite or hybrid) and US-wide remote.
@@ -64,8 +64,8 @@ async function jsearch() {
   for (const params of calls) {
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const res = await fetch(`https://jsearch.p.rapidapi.com/search?${params}&page=1&num_pages=1&date_posted=month`, {
-          headers: { "X-RapidAPI-Key": key, "X-RapidAPI-Host": "jsearch.p.rapidapi.com" },
+        const res = await fetch(`https://api.openwebninja.com/jsearch/search?${params}&page=1&num_pages=1&date_posted=month`, {
+          headers: { "x-api-key": key },
           signal: AbortSignal.timeout(15000),
         });
         if (res.status === 429 && attempt < 2) { await sleep(3000 * (attempt + 1)); continue; }
