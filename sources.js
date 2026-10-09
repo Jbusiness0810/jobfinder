@@ -40,18 +40,25 @@ async function remoteok() {
   }));
 }
 
-// JSearch (RapidAPI) aggregates LinkedIn, Indeed, Glassdoor etc. The free tier is small, so results are cached for 12h.
-const JSEARCH_QUERIES = ["VAT manager software", "indirect tax manager SaaS", "tax counsel technology company"];
+// JSearch (RapidAPI) aggregates LinkedIn, Indeed, Glassdoor etc. The free tier is small, so results are cached for 24h.
+// US employers say "indirect tax" or "sales and use tax" more than "VAT", so the queries cover both.
+const JSEARCH_QUERIES = ["indirect tax VAT manager software", "tax counsel technology company"];
+// Target markets: Irvine, CA (onsite or hybrid) and US-wide remote.
+const JSEARCH_SEARCHES = [
+  (q) => `query=${encodeURIComponent(`${q} in Irvine, California`)}&country=us&radius=50`,
+  (q) => `query=${encodeURIComponent(`${q} remote`)}&country=us&work_from_home=true`,
+];
+const US_LOCATION = /irvine|california|\bca\b|usa|united states|\bus\b|u\.s\.|americas|north america|worldwide|anywhere|^remote$/i;
 let jsearchCache = { at: 0, jobs: [] };
-const JSEARCH_TTL = 12 * 60 * 60 * 1000;
+const JSEARCH_TTL = 24 * 60 * 60 * 1000;
 
 async function jsearch() {
   const key = process.env.JSEARCH_API_KEY;
   if (!key) return [];
   if (Date.now() - jsearchCache.at < JSEARCH_TTL) return jsearchCache.jobs;
-  const where = process.env.JSEARCH_LOCATION || "Europe";
-  const lists = await Promise.all(JSEARCH_QUERIES.map(async (q) => {
-    const url = `https://jsearch.p.rapidapi.com/search?query=${encodeURIComponent(`${q} in ${where}`)}&page=1&num_pages=1&date_posted=month`;
+  const calls = JSEARCH_QUERIES.flatMap((q) => JSEARCH_SEARCHES.map((build) => build(q)));
+  const lists = await Promise.all(calls.map(async (params) => {
+    const url = `https://jsearch.p.rapidapi.com/search?${params}&page=1&num_pages=1&date_posted=month`;
     const res = await fetch(url, {
       headers: { "X-RapidAPI-Key": key, "X-RapidAPI-Host": "jsearch.p.rapidapi.com" },
       signal: AbortSignal.timeout(20000),
@@ -75,12 +82,13 @@ const TTL = 30 * 60 * 1000;
 
 export async function loadJobs(force = false) {
   if (!force && Date.now() - cache.at < TTL && cache.jobs.length) return cache;
-  const results = await Promise.allSettled([remotive(), arbeitnow(), remoteok(), jsearch()]);
+  const results = await Promise.allSettled([remotive(), remoteok(), jsearch()]);
   const errors = results.filter((r) => r.status === "rejected").map((r) => String(r.reason?.message || r.reason));
   const seen = new Set();
   const jobs = [];
   for (const j of results.filter((r) => r.status === "fulfilled").flatMap((r) => r.value)) {
     const key = `${j.title}|${j.company}`.toLowerCase();
+    if (!US_LOCATION.test(j.location || "")) continue;
     if (seen.has(key)) continue;
     seen.add(key);
     const s = scoreJob(j);
