@@ -11,7 +11,7 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
   try {
     if (url.pathname === "/api/jobs") {
-      const { jobs, errors, at } = await loadJobs(url.searchParams.get("refresh") === "1");
+      const { jobs, errors, at } = await loadJobs();
       res.writeHead(200, { "Content-Type": "application/json" });
       return res.end(JSON.stringify({ jobs, errors, fetchedAt: at }));
     }

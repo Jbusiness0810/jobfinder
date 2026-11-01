@@ -41,15 +41,20 @@ async function remoteok() {
   }));
 }
 
-// JSearch (OpenWeb Ninja) aggregates LinkedIn, Indeed, Glassdoor etc. The free tier is small, so results are cached for 48h.
-// US employers say "indirect tax" or "sales and use tax" more than "VAT", so the queries cover both.
-const JSEARCH_QUERIES = ["indirect tax VAT manager software", "tax counsel technology company", "sales and use tax manager SaaS"];
+// JSearch (OpenWeb Ninja) aggregates LinkedIn, Indeed, Glassdoor, law firm and company sites.
+// Free plan is 200 requests/month: 8 calls per fetch, cached 48h in memory and 24h at the CDN.
+const JSEARCH_QUERIES = [
+  "indirect tax OR VAT OR sales tax manager",
+  "tax counsel OR tax attorney OR tax associate",
+  "tax manager OR tax director",
+  "tax associate law firm",
+];
 // Target markets: Irvine, CA (onsite or hybrid) and US-wide remote.
 const JSEARCH_SEARCHES = [
   (q) => `query=${encodeURIComponent(`${q} in Irvine, California`)}&country=us&radius=50`,
   (q) => `query=${encodeURIComponent(`${q} remote`)}&country=us&work_from_home=true`,
 ];
-const US_LOCATION = /irvine|california|\bca\b|usa|united states|\bus\b|u\.s\.|americas|north america|worldwide|anywhere|^remote$/i;
+const US_LOCATION = /irvine|orange county|california|\bca\b|usa|united states|\bus\b|u\.s\.|americas|north america|worldwide|anywhere|^remote$/i;
 let jsearchCache = { at: 0, jobs: [] };
 const JSEARCH_TTL = 48 * 60 * 60 * 1000;
 
@@ -58,7 +63,6 @@ async function jsearch() {
   if (!key) throw new Error("JSEARCH_API_KEY is not set in this deployment's environment");
   if (Date.now() - jsearchCache.at < JSEARCH_TTL) return jsearchCache.jobs;
   const calls = JSEARCH_QUERIES.flatMap((q) => JSEARCH_SEARCHES.map((build) => build(q)));
-  // Sequential with a short pause: RapidAPI free plans often rate-limit bursts (429).
   const lists = [];
   const failures = [];
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -77,12 +81,12 @@ async function jsearch() {
       }
       break;
     }
-    await sleep(2000);
+    await sleep(1500);
   }
   if (!lists.length) throw new Error(`JSearch failed: ${failures[0]}`);
   const jobs = lists.flat().map((j) => ({
     id: `jsearch-${j.job_id}`, source: j.job_publisher || "JSearch", title: j.job_title, company: j.employer_name,
-    location: [j.job_city, j.job_country].filter(Boolean).join(", ") || "n/a", remote: !!j.job_is_remote,
+    location: [j.job_city, j.job_state, j.job_country].filter(Boolean).join(", ") || "n/a", remote: !!j.job_is_remote,
     url: j.job_apply_link, posted: j.job_posted_at_datetime_utc,
     salary: j.job_min_salary ? `${j.job_salary_currency || ""} ${j.job_min_salary} - ${j.job_max_salary}`.trim() : "",
     description: j.job_description || "",
@@ -94,8 +98,8 @@ async function jsearch() {
 let cache = { at: 0, jobs: [], errors: [] };
 const TTL = 30 * 60 * 1000;
 
-export async function loadJobs(force = false) {
-  if (!force && Date.now() - cache.at < TTL && cache.jobs.length) return cache;
+export async function loadJobs() {
+  if (Date.now() - cache.at < TTL && cache.jobs.length) return cache;
   const results = await Promise.allSettled([remotive(), remoteok(), jsearch(), atsJobs()]);
   const errors = results.filter((r) => r.status === "rejected").map((r) => String(r.reason?.message || r.reason));
   const seen = new Set();
@@ -106,10 +110,10 @@ export async function loadJobs(force = false) {
     if (seen.has(key)) continue;
     seen.add(key);
     const s = scoreJob(j);
-    if (s.score < 20) continue;
+    if (s.score < 25) continue;
     jobs.push({
       id: j.id, source: j.source, title: j.title, company: j.company, location: j.location, remote: j.remote,
-      url: j.url, posted: j.posted, salary: j.salary, score: s.score, why: s.why, tags: s.tags,
+      url: j.url, posted: j.posted, salary: j.salary, score: s.score, why: s.why, tags: s.tags, category: s.category,
       inHouse: s.inHouse, tech: s.tech || !!j.techEmployer, snippet: strip(j.description).slice(0, 400),
     });
   }

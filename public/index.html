@@ -3,35 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>VAT Job Finder</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%276%27 fill=%27%231f5fbf%27/%3E%3Ctext x=%2716%27 y=%2722%27 font-size=%2714%27 font-family=%27sans-serif%27 font-weight=%27700%27 fill=%27white%27 text-anchor=%27middle%27%3EVAT%3C/text%3E%3C/svg%3E">
+<title>Tax Job Finder</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%276%27 fill=%27%231f5fbf%27/%3E%3Ctext x=%2716%27 y=%2722%27 font-size=%2714%27 font-family=%27sans-serif%27 font-weight=%27700%27 fill=%27white%27 text-anchor=%27middle%27%3ETAX%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header>
-  <h1>VAT Job Finder</h1>
-  <p>In-house indirect tax and tax legal roles at software and tech companies in Irvine, CA and US remote.</p>
+  <h1>Tax Job Finder</h1>
+  <p>Indirect tax, VAT and tax legal roles in Irvine, CA and US remote. In-house tech, other in-house, law firm and advisory roles, best matches first.</p>
 </header>
 <main>
-  <section class="filters">
-    <input id="q" type="search" autocomplete="off" placeholder="Filter by keyword, company or location">
-    <label>Min match <output id="minOut">30</output>
-      <input id="min" type="range" min="0" max="90" step="5" value="30"></label>
-    <label><input id="inhouse" type="checkbox" checked> In-house only</label>
-    <label><input id="tech" type="checkbox"> Tech employers only</label>
-    <label><input id="remote" type="checkbox"> Remote only</label>
-    <label><input id="saved" type="checkbox"> Saved only</label>
-    <button id="refresh" type="button">Refresh</button>
-  </section>
   <p id="status" role="status">Loading jobs...</p>
+  <nav class="groups" id="groups"></nav>
   <ul id="results"></ul>
-
-  <section class="elsewhere">
-    <h2>Search the big boards with tuned queries</h2>
-    <p>Searches focus on Irvine, CA and US remote. These open pre-built searches on the major boards.</p>
-    <div class="loc"><label>Location <input id="loc" value="Irvine, California"></label></div>
-    <div id="links"></div>
-  </section>
 </main>
 <script src="app.js"></script>
 </body>
