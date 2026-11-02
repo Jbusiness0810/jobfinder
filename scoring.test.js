@@ -8,17 +8,18 @@ test("senior in-house VAT role at a SaaS company scores high", () => {
   assert.equal(r.category, "In-house");
 });
 
-test("law firm tax roles are a good fit, ranked just under in-house", () => {
+test("law firm and Big 4 tax roles are a good fit, in-house still ahead", () => {
   const inHouse = scoreJob({ title: "Indirect Tax Manager", company: "Stripe", description: "software" });
   const law = scoreJob({ title: "Tax Associate", company: "Latham & Watkins", description: "Our law firm seeks a JD with 4+ years in transactional tax." });
   const advisory = scoreJob({ title: "Indirect Tax Manager", company: "KPMG LLP", description: "advisory" });
   assert.equal(law.category, "Law firm");
   assert.ok(law.score >= 35, `got ${law.score}`);
-  assert.ok(law.score > advisory.score);
+  assert.ok(advisory.score >= 50, `advisory got ${advisory.score}`);
+  assert.ok(inHouse.score > advisory.score);
   assert.ok(inHouse.score > law.score);
 });
 
-test("accounting / advisory roles are still included but ranked lower", () => {
+test("Big 4 and advisory roles are included", () => {
   const r = scoreJob({ title: "Senior Manager, Tax Technology Consulting", company: "Ryan", description: "software" });
   assert.equal(r.category, "Accounting / advisory");
   assert.ok(r.score > 20);
