@@ -48,7 +48,9 @@ async function load() {
     const d = await r.json();
     jobs = d.jobs;
     render();
-    if (d.errors.length) $("status").textContent += ` (source error: ${d.errors.join("; ")})`;
+    const raw = Object.entries(d.sources || {}).map(([k, v]) => `${k} ${v}`).join(", ");
+    if (raw) $("status").textContent += `. Raw listings before matching: ${raw}`;
+    if (d.errors.length) $("status").textContent += `. Source error: ${d.errors.join("; ")}`;
   } catch (e) {
     $("status").textContent = `Could not load jobs (${e.message}). Please try again in a minute.`;
   }

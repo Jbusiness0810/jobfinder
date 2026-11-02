@@ -11,9 +11,9 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
   try {
     if (url.pathname === "/api/jobs") {
-      const { jobs, errors, at } = await loadJobs();
+      const { jobs, errors, at, sources } = await loadJobs();
       res.writeHead(200, { "Content-Type": "application/json" });
-      return res.end(JSON.stringify({ jobs, errors, fetchedAt: at }));
+      return res.end(JSON.stringify({ jobs, errors, fetchedAt: at, sources }));
     }
     const file = url.pathname === "/" ? "/index.html" : url.pathname;
     const full = path.join(root, path.normalize(file));

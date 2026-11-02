@@ -56,39 +56,45 @@ const JSEARCH_SEARCHES = [
 ];
 const US_LOCATION = /irvine|orange county|california|\bca\b|usa|united states|\bus\b|u\.s\.|americas|north america|worldwide|anywhere|^remote$/i;
 let jsearchCache = { at: 0, jobs: [] };
+let jsearchErrors = "";
 const JSEARCH_TTL = 48 * 60 * 60 * 1000;
 
 async function jsearch() {
   const key = (process.env.JSEARCH_API_KEY || "").trim();
+  jsearchErrors = "";
   if (!key) throw new Error("JSEARCH_API_KEY is not set in this deployment's environment");
   if (Date.now() - jsearchCache.at < JSEARCH_TTL) return jsearchCache.jobs;
   const calls = JSEARCH_QUERIES.flatMap((q) => JSEARCH_SEARCHES.map((build) => build(q)));
   const lists = [];
   const failures = [];
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  // Hard budget so the serverless function always answers before Vercel's limit.
-  const deadline = Date.now() + 35000;
+  // Two lanes in parallel, hard budget so the serverless function always answers before Vercel's limit.
+  const deadline = Date.now() + 45000;
   let skipped = 0;
-  for (const params of calls) {
-    if (Date.now() > deadline) { skipped++; continue; }
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const res = await fetch(`https://api.openwebninja.com/jsearch/search?${params}&page=1&num_pages=1&date_posted=month`, {
-          headers: { "x-api-key": key },
-          signal: AbortSignal.timeout(10000),
-        });
-        if (res.status === 429 && attempt === 0) { await sleep(2500); continue; }
-        if (!res.ok) throw new Error(`HTTP ${res.status} ${(await res.text()).slice(0, 120)}`);
-        lists.push((await res.json()).data || []);
-      } catch (e) {
-        failures.push(e.message);
+  const lane = async (mine) => {
+    for (const params of mine) {
+      if (Date.now() > deadline) { skipped++; continue; }
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const res = await fetch(`https://api.openwebninja.com/jsearch/search?${params}&page=1&num_pages=1&date_posted=month`, {
+            headers: { "x-api-key": key },
+            signal: AbortSignal.timeout(Math.max(3000, Math.min(20000, deadline - Date.now()))),
+          });
+          if (res.status === 429 && attempt === 0) { await sleep(2500); continue; }
+          if (!res.ok) throw new Error(`HTTP ${res.status} ${(await res.text()).slice(0, 120)}`);
+          lists.push((await res.json()).data || []);
+        } catch (e) {
+          failures.push(e.message);
+        }
+        break;
       }
-      break;
+      await sleep(500);
     }
-    await sleep(800);
-  }
+  };
+  await Promise.all([lane(calls.filter((_, i) => i % 2 === 0)), lane(calls.filter((_, i) => i % 2 === 1))]);
   if (!lists.length) throw new Error(`JSearch failed: ${failures[0]}`);
-  if (skipped) failures.push(`${skipped} searches skipped (time budget)`);
+  if (failures.length) jsearchErrors = `${failures.length} of ${calls.length} JSearch searches failed: ${failures[0]}`;
+  if (skipped) jsearchErrors = `${skipped} JSearch searches skipped (time budget)`;
   const jobs = lists.flat().map((j) => ({
     id: `jsearch-${j.job_id}`, source: j.job_publisher || "JSearch", title: j.job_title, company: j.employer_name,
     location: [j.job_city, j.job_state, j.job_country].filter(Boolean).join(", ") || "n/a", remote: !!j.job_is_remote,
@@ -100,13 +106,17 @@ async function jsearch() {
   return jobs;
 }
 
-let cache = { at: 0, jobs: [], errors: [] };
+let cache = { at: 0, jobs: [], errors: [], sources: {} };
 const TTL = 30 * 60 * 1000;
 
 export async function loadJobs() {
   if (Date.now() - cache.at < TTL && cache.jobs.length) return cache;
+  const names = ["Remotive", "RemoteOK", "JSearch", "Career pages"];
   const results = await Promise.allSettled([remotive(), remoteok(), jsearch(), atsJobs()]);
   const errors = results.filter((r) => r.status === "rejected").map((r) => String(r.reason?.message || r.reason));
+  if (jsearchErrors) errors.push(jsearchErrors);
+  const sources = {};
+  results.forEach((r, i) => { sources[names[i]] = r.status === "fulfilled" ? r.value.length : "failed"; });
   const seen = new Set();
   const jobs = [];
   for (const j of results.filter((r) => r.status === "fulfilled").flatMap((r) => r.value)) {
@@ -123,6 +133,6 @@ export async function loadJobs() {
     });
   }
   jobs.sort((a, b) => b.score - a.score);
-  cache = { at: Date.now(), jobs, errors };
+  cache = { at: Date.now(), jobs, errors, sources };
   return cache;
 }
