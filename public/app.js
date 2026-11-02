@@ -44,12 +44,13 @@ function render() {
 async function load() {
   try {
     const r = await fetch("/api/jobs");
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const d = await r.json();
     jobs = d.jobs;
     render();
     if (d.errors.length) $("status").textContent += ` (source error: ${d.errors.join("; ")})`;
-  } catch {
-    $("status").textContent = "Could not load jobs. Please try again in a minute.";
+  } catch (e) {
+    $("status").textContent = `Could not load jobs (${e.message}). Please try again in a minute.`;
   }
 }
 

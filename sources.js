@@ -66,14 +66,18 @@ async function jsearch() {
   const lists = [];
   const failures = [];
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  // Hard budget so the serverless function always answers before Vercel's limit.
+  const deadline = Date.now() + 35000;
+  let skipped = 0;
   for (const params of calls) {
-    for (let attempt = 0; attempt < 3; attempt++) {
+    if (Date.now() > deadline) { skipped++; continue; }
+    for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const res = await fetch(`https://api.openwebninja.com/jsearch/search?${params}&page=1&num_pages=1&date_posted=month`, {
           headers: { "x-api-key": key },
-          signal: AbortSignal.timeout(15000),
+          signal: AbortSignal.timeout(10000),
         });
-        if (res.status === 429 && attempt < 2) { await sleep(3000 * (attempt + 1)); continue; }
+        if (res.status === 429 && attempt === 0) { await sleep(2500); continue; }
         if (!res.ok) throw new Error(`HTTP ${res.status} ${(await res.text()).slice(0, 120)}`);
         lists.push((await res.json()).data || []);
       } catch (e) {
@@ -81,9 +85,10 @@ async function jsearch() {
       }
       break;
     }
-    await sleep(1500);
+    await sleep(800);
   }
   if (!lists.length) throw new Error(`JSearch failed: ${failures[0]}`);
+  if (skipped) failures.push(`${skipped} searches skipped (time budget)`);
   const jobs = lists.flat().map((j) => ({
     id: `jsearch-${j.job_id}`, source: j.job_publisher || "JSearch", title: j.job_title, company: j.employer_name,
     location: [j.job_city, j.job_state, j.job_country].filter(Boolean).join(", ") || "n/a", remote: !!j.job_is_remote,
