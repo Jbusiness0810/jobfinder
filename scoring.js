@@ -64,8 +64,8 @@ export function scoreJob(job) {
 
   let category;
   const techHit = TECH.test(company + " " + title + " " + body.slice(0, 2500));
-  if (lawFirm) { category = "Law firm"; score += 8; why.push("Legal practice fit"); }
-  else if (advisory) { category = "Accounting / advisory"; score -= 10; }
+  if (lawFirm) { category = "Law firm"; score += 10; why.push("Legal practice fit"); }
+  else if (advisory) { category = "Accounting / advisory"; score -= 12; }
   else { category = "In-house"; score += 10; if (techHit) { score += 12; why.push("Tech / software employer"); } }
 
   if (/bar (admission|membership|license)|admitted to (the )?(bar|practice)|licensed (to practice|attorney)|active (bar|law license)|member of the .{0,20}bar|must be (an? )?(licensed|admitted)/i.test(body)) { score -= 12; why.push("Requires bar admission"); }
