@@ -13,7 +13,7 @@ test("law firm tax roles are a good fit, ranked just under in-house", () => {
   const law = scoreJob({ title: "Tax Associate", company: "Latham & Watkins", description: "Our law firm seeks a JD with 4+ years in transactional tax." });
   const advisory = scoreJob({ title: "Indirect Tax Manager", company: "KPMG LLP", description: "advisory" });
   assert.equal(law.category, "Law firm");
-  assert.ok(law.score >= 50, `got ${law.score}`);
+  assert.ok(law.score >= 35, `got ${law.score}`);
   assert.ok(law.score > advisory.score);
   assert.ok(inHouse.score > law.score);
 });
@@ -31,4 +31,11 @@ test("unrelated roles that only mention tax are dropped", () => {
 
 test("junior roles are penalised", () => {
   assert.ok(scoreJob({ title: "Tax Intern", company: "A", description: "" }).score < scoreJob({ title: "Tax Manager", company: "A", description: "" }).score);
+});
+
+test("senior counsel and bar-required roles rank below manager roles", () => {
+  const mgr = scoreJob({ title: "Indirect Tax Manager", company: "Okta", description: "software" });
+  const counsel = scoreJob({ title: "Senior Tax Counsel", company: "Okta", description: "software. Must be admitted to the California bar." });
+  assert.ok(counsel.score < mgr.score - 20, `${counsel.score} vs ${mgr.score}`);
+  assert.ok(counsel.why.includes("Requires bar admission"));
 });

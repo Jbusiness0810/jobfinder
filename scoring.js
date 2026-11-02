@@ -12,13 +12,16 @@ const strip = (html = "") =>
 const TITLE_CORE = [
   [/\bvat\b|\bgst\b|value[- ]added tax/i, 40],
   [/indirect tax|transaction tax|sales (and|&) use tax|sales tax|\bsalt\b|consumption tax/i, 38],
-  [/tax (counsel|attorney|lawyer|associate|legal)|legal.*\btax\b|\btax\b.*legal/i, 34],
+  [/tax (counsel|attorney|lawyer|associate|legal)|legal.*\btax\b|\btax\b.*legal/i, 24],
   [/\btax\b/i, 18],
   [/e-?invoic|digital reporting|tax compliance|tax technology/i, 15],
 ];
+// Best fit is manager / senior manager. Senior counsel, director and above are a stretch.
 const SENIORITY = [
-  [/\b(head|director|vp|vice president|partner)\b/i, 12],
-  [/\b(senior manager|manager|lead|principal|counsel|of counsel)\b/i, 15],
+  [/\b(senior|sr\.?|lead|principal|chief|deputy general) (tax )?(counsel|attorney|lawyer)\b|\bgeneral counsel\b/i, -15],
+  [/\b(head|director|vp|vice president|partner)\b/i, -5],
+  [/\b(senior manager|manager|lead|principal)\b/i, 15],
+  [/\b(counsel|attorney|lawyer)\b/i, 4],
   [/\b(senior|sr\.?|associate)\b/i, 6],
   [/\b(intern|trainee|junior|assistant|apprentice|clerk|paralegal|law clerk|summer)\b/i, -30],
 ];
@@ -64,6 +67,8 @@ export function scoreJob(job) {
   if (lawFirm) { category = "Law firm"; score += 8; why.push("Legal practice fit"); }
   else if (advisory) { category = "Accounting / advisory"; score -= 10; }
   else { category = "In-house"; score += 10; if (techHit) { score += 12; why.push("Tech / software employer"); } }
+
+  if (/bar (admission|membership|license)|admitted to (the )?(bar|practice)|licensed (to practice|attorney)|active (bar|law license)|member of the .{0,20}bar|must be (an? )?(licensed|admitted)/i.test(body)) { score -= 12; why.push("Requires bar admission"); }
 
   if (NOT_RELEVANT.test(title) || /recruit|staffing|talent/i.test(company)) score -= 40;
 
