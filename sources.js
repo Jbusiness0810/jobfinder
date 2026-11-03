@@ -43,11 +43,12 @@ async function remoteok() {
 
 // JSearch (OpenWeb Ninja) aggregates LinkedIn, Indeed, Glassdoor, law firm and company sites.
 // Free plan is 200 requests/month: 8 calls per fetch, cached 48h in memory and 24h at the CDN.
+// Plain phrases only: Google's job search treats OR loosely and returns unrelated roles.
 const JSEARCH_QUERIES = [
-  "indirect tax OR VAT OR sales tax manager",
-  "tax counsel OR tax attorney OR tax associate",
-  "tax manager OR tax director",
-  "tax associate law firm",
+  "indirect tax manager",
+  "sales and use tax manager",
+  "tax manager",
+  "tax counsel",
 ];
 // Target markets: Irvine, CA (onsite or hybrid) and US-wide remote.
 const JSEARCH_SEARCHES = [
@@ -119,13 +120,18 @@ export async function loadJobs() {
   results.forEach((r, i) => { sources[names[i]] = r.status === "fulfilled" ? r.value.length : "failed"; });
   const seen = new Set();
   const jobs = [];
+  const dropped = { location: 0, duplicate: 0, lowMatch: 0, samples: [] };
   for (const j of results.filter((r) => r.status === "fulfilled").flatMap((r) => r.value)) {
     const key = `${j.title}|${j.company}`.toLowerCase();
-    if (!US_LOCATION.test(j.location || "")) continue;
-    if (seen.has(key)) continue;
+    if (!US_LOCATION.test(j.location || "")) { dropped.location++; continue; }
+    if (seen.has(key)) { dropped.duplicate++; continue; }
     seen.add(key);
     const s = scoreJob(j);
-    if (s.score < 25) continue;
+    if (s.score < 20) {
+      dropped.lowMatch++;
+      if (dropped.samples.length < 25) dropped.samples.push(`${j.title} @ ${j.company} (${s.score})`);
+      continue;
+    }
     jobs.push({
       id: j.id, source: j.source, title: j.title, company: j.company, location: j.location, remote: j.remote,
       url: j.url, posted: j.posted, salary: j.salary, score: s.score, why: s.why, tags: s.tags, category: s.category,
@@ -133,6 +139,6 @@ export async function loadJobs() {
     });
   }
   jobs.sort((a, b) => b.score - a.score);
-  cache = { at: Date.now(), jobs, errors, sources };
+  cache = { at: Date.now(), jobs, errors, sources, dropped };
   return cache;
 }

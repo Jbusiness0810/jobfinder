@@ -71,6 +71,7 @@ async function load() {
     if (fresh !== jobs.length) $("status").textContent += ` (${fresh} in the latest fetch, the rest remembered from earlier visits)`;
     const raw = Object.entries(d.sources || {}).map(([k, v]) => `${k} ${v}`).join(", ");
     if (raw) $("status").textContent += `. Raw listings before matching: ${raw}`;
+    if (d.dropped) $("status").textContent += `. Dropped: ${d.dropped.lowMatch} low match, ${d.dropped.location} outside area, ${d.dropped.duplicate} duplicates`;
     if (d.errors.length) $("status").textContent += `. Source error: ${d.errors.join("; ")}`;
   } catch (e) {
     $("status").textContent = `Could not load jobs (${e.message}). Please try again in a minute.`;
