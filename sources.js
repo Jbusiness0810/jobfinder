@@ -71,8 +71,10 @@ async function jsearch(slot = "all") {
   // Two lanes in parallel, hard budget so the serverless function always answers before Vercel's limit.
   const deadline = Date.now() + 45000;
   let skipped = 0;
+  let quotaHit = false;
   const lane = async (mine) => {
     for (const params of mine) {
+      if (quotaHit) { skipped++; continue; }
       if (Date.now() > deadline) { skipped++; continue; }
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
@@ -80,7 +82,13 @@ async function jsearch(slot = "all") {
             headers: { "x-api-key": key },
             signal: AbortSignal.timeout(Math.max(3000, Math.min(20000, deadline - Date.now()))),
           });
-          if (res.status === 429 && attempt === 0) { await sleep(2500); continue; }
+          if (res.status === 429) {
+            const text = (await res.text()).slice(0, 160);
+            // Monthly quota exhausted: stop the whole run, nothing more will succeed until it resets.
+            if (/quota|limit.*(month|plan)|upgrade/i.test(text) || quotaHit) { quotaHit = true; throw new Error(`JSearch monthly quota used up (HTTP 429 ${text})`); }
+            if (attempt === 0) { await sleep(2500); continue; }
+            throw new Error(`HTTP 429 ${text}`);
+          }
           if (!res.ok) throw new Error(`HTTP ${res.status} ${(await res.text()).slice(0, 120)}`);
           lists.push((await res.json()).data || []);
         } catch (e) {
@@ -92,7 +100,7 @@ async function jsearch(slot = "all") {
     }
   };
   await Promise.all([lane(calls.filter((_, i) => i % 2 === 0)), lane(calls.filter((_, i) => i % 2 === 1))]);
-  if (!lists.length) throw new Error(`JSearch failed: ${failures[0]}`);
+  if (!lists.length) throw new Error(quotaHit ? failures.find((f) => /quota/.test(f)) : `JSearch failed: ${failures[0]}`);
   if (failures.length) jsearchErrors = `${failures.length} of ${calls.length} JSearch searches failed: ${failures[0]}`;
   if (skipped) jsearchErrors = `${skipped} JSearch searches skipped (time budget)`;
   const jobs = lists.flat().map((j) => ({
