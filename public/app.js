@@ -21,7 +21,7 @@ function card(j) {
       <div>
         <h3><a href="${safeUrl(j.url)}" target="_blank" rel="noopener noreferrer">${esc(j.title)}</a></h3>
         <div class="meta">${esc(j.company)} · ${esc(j.location || "n/a")}${j.remote ? " · Remote" : ""}${j.posted ? " · " + ago(j.posted) : ""} · ${esc(j.source)}${j.salary ? " · " + esc(j.salary) : ""}</div>
-        <div class="chips"><span class="chip cat">${esc(j.category)}</span>${j.why.map((w) => `<span class="chip">${esc(w)}</span>`).join("")}</div>
+        <div class="chips"><span class="chip cat">${esc(j.category)}</span>${j.why.map((w) => `<span class="chip">${esc(w)}</span>`).join("")}${j.stale ? `<span class="chip stale">Not in latest results</span>` : ""}</div>
         ${j.snippet ? `<p class="snip">${esc(j.snippet)}...</p>` : ""}
         <div class="actions">
           <a class="btn" href="${safeUrl(j.url)}" target="_blank" rel="noopener noreferrer">View job</a>
@@ -29,6 +29,25 @@ function card(j) {
         </div>
       </div>
     </li>`;
+}
+
+// Remember every job shown for 30 days so a failed or partial fetch does not wipe the list.
+const KEEP_DAYS = 30;
+function loadMemory() {
+  try { return JSON.parse(localStorage.getItem("seenJobs") || "{}"); } catch { return {}; }
+}
+function merge(fresh) {
+  const mem = loadMemory();
+  const now = Date.now();
+  for (const j of fresh) mem[j.id] = { ...j, firstSeen: mem[j.id]?.firstSeen || now, lastSeen: now };
+  const freshIds = new Set(fresh.map((j) => j.id));
+  const out = [];
+  for (const [id, j] of Object.entries(mem)) {
+    if (now - j.lastSeen > KEEP_DAYS * 864e5) { delete mem[id]; continue; }
+    out.push({ ...j, stale: !freshIds.has(id) });
+  }
+  try { localStorage.setItem("seenJobs", JSON.stringify(mem)); } catch {}
+  return out.sort((a, b) => b.score - a.score);
 }
 
 let jobs = [];
@@ -46,8 +65,10 @@ async function load() {
     const r = await fetch("/api/jobs");
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const d = await r.json();
-    jobs = d.jobs;
+    jobs = merge(d.jobs);
     render();
+    const fresh = d.jobs.length;
+    if (fresh !== jobs.length) $("status").textContent += ` (${fresh} in the latest fetch, the rest remembered from earlier visits)`;
     const raw = Object.entries(d.sources || {}).map(([k, v]) => `${k} ${v}`).join(", ");
     if (raw) $("status").textContent += `. Raw listings before matching: ${raw}`;
     if (d.errors.length) $("status").textContent += `. Source error: ${d.errors.join("; ")}`;

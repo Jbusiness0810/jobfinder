@@ -18,6 +18,7 @@ li.head{background:none;border:0;padding:0}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
 .chip{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted)}
 .chip.cat{color:var(--accent);border-color:var(--accent)}
+.chip.stale{color:var(--mid);border-color:var(--mid)}
 .snip{font-size:14px;margin:6px 0;color:var(--muted)}
 .actions{display:flex;gap:8px;margin-top:6px}
 .btn{background:var(--accent);color:#fff;border:0;border-radius:6px;padding:8px 14px;font:inherit;cursor:pointer;text-decoration:none;display:inline-block}
