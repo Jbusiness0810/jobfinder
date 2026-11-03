@@ -1,4 +1,4 @@
-// Persistent job memory. Uses Vercel Blob when BLOB_READ_WRITE_TOKEN is set, else a local JSON file.
+// Persistent job memory. Uses a private Vercel Blob store when BLOB_READ_WRITE_TOKEN is set, else a local JSON file.
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,14 +12,15 @@ const useBlob = () => !!process.env.BLOB_READ_WRITE_TOKEN;
 export async function readStore() {
   try {
     if (useBlob()) {
-      const { list } = await import("@vercel/blob");
-      const { blobs } = await list({ prefix: KEY, limit: 1 });
-      if (!blobs.length) return { ...EMPTY };
-      const res = await fetch(blobs[0].url, { cache: "no-store" });
-      return res.ok ? { ...EMPTY, ...(await res.json()) } : { ...EMPTY };
+      const { get } = await import("@vercel/blob");
+      const res = await get(KEY, { access: "private", useCache: false });
+      if (!res || res.statusCode !== 200) return { ...EMPTY };
+      const text = await new Response(res.stream).text();
+      return { ...EMPTY, ...JSON.parse(text) };
     }
     return { ...EMPTY, ...JSON.parse(await readFile(LOCAL, "utf8")) };
-  } catch {
+  } catch (e) {
+    if (useBlob()) console.error("readStore failed:", e.message);
     return { ...EMPTY };
   }
 }
@@ -28,7 +29,7 @@ export async function writeStore(store) {
   const body = JSON.stringify(store);
   if (useBlob()) {
     const { put } = await import("@vercel/blob");
-    await put(KEY, body, { access: "public", addRandomSuffix: false, allowOverwrite: true, contentType: "application/json" });
+    await put(KEY, body, { access: "private", addRandomSuffix: false, allowOverwrite: true, contentType: "application/json" });
     return;
   }
   await mkdir(path.dirname(LOCAL), { recursive: true });
