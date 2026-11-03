@@ -56,16 +56,15 @@ const JSEARCH_SEARCHES = [
   (q) => `query=${encodeURIComponent(`${q} remote`)}&country=us&work_from_home=true`,
 ];
 const US_LOCATION = /irvine|orange county|california|\bca\b|usa|united states|\bus\b|u\.s\.|americas|north america|worldwide|anywhere|^remote$/i;
-let jsearchCache = { at: 0, jobs: [] };
 let jsearchErrors = "";
-const JSEARCH_TTL = 48 * 60 * 60 * 1000;
 
-async function jsearch() {
-  const key = (process.env.JSEARCH_API_KEY || "").trim();
+// slot "irvine" or "remote" runs 4 searches; "all" runs 8. The daily job alternates slots, so ~120 calls/month.
+async function jsearch(slot = "all") {
   jsearchErrors = "";
+  const key = (process.env.JSEARCH_API_KEY || "").trim();
   if (!key) throw new Error("JSEARCH_API_KEY is not set in this deployment's environment");
-  if (Date.now() - jsearchCache.at < JSEARCH_TTL) return jsearchCache.jobs;
-  const calls = JSEARCH_QUERIES.flatMap((q) => JSEARCH_SEARCHES.map((build) => build(q)));
+  const builders = slot === "irvine" ? [JSEARCH_SEARCHES[0]] : slot === "remote" ? [JSEARCH_SEARCHES[1]] : JSEARCH_SEARCHES;
+  const calls = JSEARCH_QUERIES.flatMap((q) => builders.map((build) => build(q)));
   const lists = [];
   const failures = [];
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -103,17 +102,13 @@ async function jsearch() {
     salary: j.job_min_salary ? `${j.job_salary_currency || ""} ${j.job_min_salary} - ${j.job_max_salary}`.trim() : "",
     description: j.job_description || "",
   }));
-  if (!failures.length) jsearchCache = { at: Date.now(), jobs };
   return jobs;
 }
 
-let cache = { at: 0, jobs: [], errors: [], sources: {} };
-const TTL = 30 * 60 * 1000;
-
-export async function loadJobs() {
-  if (Date.now() - cache.at < TTL && cache.jobs.length) return cache;
+export async function fetchJobs({ slot } = {}) {
+  slot = slot || (new Date().getUTCDate() % 2 === 0 ? "irvine" : "remote");
   const names = ["Remotive", "RemoteOK", "JSearch", "Career pages"];
-  const results = await Promise.allSettled([remotive(), remoteok(), jsearch(), atsJobs()]);
+  const results = await Promise.allSettled([remotive(), remoteok(), jsearch(slot), atsJobs()]);
   const errors = results.filter((r) => r.status === "rejected").map((r) => String(r.reason?.message || r.reason));
   if (jsearchErrors) errors.push(jsearchErrors);
   const sources = {};
@@ -139,6 +134,5 @@ export async function loadJobs() {
     });
   }
   jobs.sort((a, b) => b.score - a.score);
-  cache = { at: Date.now(), jobs, errors, sources, dropped };
-  return cache;
+  return { jobs, errors, sources, dropped, slot };
 }

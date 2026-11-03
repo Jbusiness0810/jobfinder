@@ -1,15 +1,14 @@
-import { loadJobs } from "../sources.js";
+import { readStore } from "../store.js";
+import { refresh, present } from "../refresh.js";
 
+// Serves the stored list. Only runs the searches itself if the store is empty (first visit after setup).
 export default async function handler(req, res) {
-  let data;
+  res.setHeader("Cache-Control", "no-store");
   try {
-    data = await loadJobs();
+    let store = await readStore();
+    if (!store.updatedAt) store = await refresh();
+    res.status(200).json({ ...present(store), storage: process.env.BLOB_READ_WRITE_TOKEN ? "blob" : "none" });
   } catch (e) {
-    res.setHeader("Cache-Control", "no-store");
-    return res.status(200).json({ jobs: [], errors: [String(e.message || e)], fetchedAt: 0, sources: {} });
+    res.status(200).json({ jobs: [], updatedAt: 0, lastRun: null, runs: [], error: String(e.message || e) });
   }
-  const { jobs, errors, at, sources, dropped } = data;
-  // One real fetch a day at most; stale copies are served while a new one is prepared.
-  res.setHeader("Cache-Control", "s-maxage=86400, stale-while-revalidate=86400");
-  res.status(200).json({ jobs, errors, fetchedAt: at, sources, dropped });
 }

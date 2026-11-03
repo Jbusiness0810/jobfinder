@@ -1,11 +1,15 @@
 {
   "name": "jobfinder",
-  "version": "1.0.0",
-  "description": "Job search tuned for in-house VAT / indirect tax leadership roles at tech companies",
+  "version": "2.0.0",
+  "description": "Job search tuned for in-house indirect tax roles at tech companies, Irvine CA and US remote",
   "type": "module",
   "scripts": {
     "start": "node server.js",
+    "refresh": "node -e \"import('./refresh.js').then(m => m.refresh({ slot: 'all' })).then(s => console.log(Object.keys(s.jobs).length, 'jobs stored'))\"",
     "test": "node --test"
+  },
+  "dependencies": {
+    "@vercel/blob": "^0.27.0"
   },
   "engines": { "node": ">=20" }
 }

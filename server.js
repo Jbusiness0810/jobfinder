@@ -2,7 +2,8 @@ import http from "node:http";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadJobs } from "./sources.js";
+import { readStore } from "./store.js";
+import { refresh, present } from "./refresh.js";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "public");
 const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css" };
@@ -11,9 +12,15 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
   try {
     if (url.pathname === "/api/jobs") {
-      const { jobs, errors, at, sources, dropped } = await loadJobs();
+      let store = await readStore();
+      if (!store.updatedAt) store = await refresh();
       res.writeHead(200, { "Content-Type": "application/json" });
-      return res.end(JSON.stringify({ jobs, errors, fetchedAt: at, sources, dropped }));
+      return res.end(JSON.stringify(present(store)));
+    }
+    if (url.pathname === "/api/refresh") {
+      const store = await refresh({ slot: url.searchParams.get("slot") || undefined });
+      res.writeHead(200, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify({ ok: true, lastRun: store.lastRun, total: Object.keys(store.jobs).length }));
     }
     const file = url.pathname === "/" ? "/index.html" : url.pathname;
     const full = path.join(root, path.normalize(file));

@@ -31,25 +31,6 @@ function card(j) {
     </li>`;
 }
 
-// Remember every job shown for 30 days so a failed or partial fetch does not wipe the list.
-const KEEP_DAYS = 30;
-function loadMemory() {
-  try { return JSON.parse(localStorage.getItem("seenJobs") || "{}"); } catch { return {}; }
-}
-function merge(fresh) {
-  const mem = loadMemory();
-  const now = Date.now();
-  for (const j of fresh) mem[j.id] = { ...j, firstSeen: mem[j.id]?.firstSeen || now, lastSeen: now };
-  const freshIds = new Set(fresh.map((j) => j.id));
-  const out = [];
-  for (const [id, j] of Object.entries(mem)) {
-    if (now - j.lastSeen > KEEP_DAYS * 864e5) { delete mem[id]; continue; }
-    out.push({ ...j, stale: !freshIds.has(id) });
-  }
-  try { localStorage.setItem("seenJobs", JSON.stringify(mem)); } catch {}
-  return out.sort((a, b) => b.score - a.score);
-}
-
 let jobs = [];
 function render() {
   const savedJobs = jobs.filter((j) => saved.has(j.id));
@@ -57,7 +38,12 @@ function render() {
     .filter(([, list]) => list.length);
   $("groups").innerHTML = sections.map(([g, list]) => `<a href="#${slug(g)}">${esc(g)} (${list.length})</a>`).join("");
   $("results").innerHTML = sections.map(([g, list]) => `<li class="head" id="${slug(g)}"><h2>${esc(g)}</h2></li>${list.map(card).join("")}`).join("");
-  $("status").textContent = `${jobs.length} roles found, posted in the last month`;
+  
+}
+
+function since(ts) {
+  const h = Math.round((Date.now() - ts) / 36e5);
+  return h < 1 ? "under an hour ago" : h < 48 ? `${h} hour${h === 1 ? "" : "s"} ago` : `${Math.round(h / 24)} days ago`;
 }
 
 async function load() {
@@ -65,14 +51,18 @@ async function load() {
     const r = await fetch("/api/jobs");
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const d = await r.json();
-    jobs = merge(d.jobs);
+    if (d.error) throw new Error(d.error);
+    jobs = d.jobs;
     render();
-    const fresh = d.jobs.length;
-    if (fresh !== jobs.length) $("status").textContent += ` (${fresh} in the latest fetch, the rest remembered from earlier visits)`;
-    const raw = Object.entries(d.sources || {}).map(([k, v]) => `${k} ${v}`).join(", ");
-    if (raw) $("status").textContent += `. Raw listings before matching: ${raw}`;
-    if (d.dropped) $("status").textContent += `. Dropped: ${d.dropped.lowMatch} low match, ${d.dropped.location} outside area, ${d.dropped.duplicate} duplicates`;
-    if (d.errors.length) $("status").textContent += `. Source error: ${d.errors.join("; ")}`;
+    let line = `${jobs.length} roles on file, updated ${since(d.updatedAt)}. Searches run automatically once a day.`;
+    if (d.storage === "none") line += " Warning: no Blob store connected, memory will not persist between visits.";
+    const run = d.lastRun;
+    if (run) {
+      const raw = Object.entries(run.sources || {}).map(([k, v]) => `${k} ${v}`).join(", ");
+      line += ` Last run (${run.slot}): ${run.added} matches from ${raw}.`;
+      if (run.errors?.length) line += ` Source error: ${run.errors.join("; ")}`;
+    }
+    $("status").textContent = line;
   } catch (e) {
     $("status").textContent = `Could not load jobs (${e.message}). Please try again in a minute.`;
   }
