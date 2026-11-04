@@ -2,6 +2,8 @@ import { readStore } from "../store.js";
 import { refresh, present } from "../refresh.js";
 
 // Serves the stored list. Only runs the searches itself if the store is empty (first visit after setup).
+export const config = { maxDuration: 60 };
+
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   try {

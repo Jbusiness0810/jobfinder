@@ -2,6 +2,8 @@ import { readStore } from "../store.js";
 import { refresh } from "../refresh.js";
 
 // Called by Vercel Cron once a day. Also runnable by hand at /api/refresh?slot=all.
+export const config = { maxDuration: 60 };
+
 export default async function handler(req, res) {
   const secret = process.env.CRON_SECRET;
   if (secret && req.headers.authorization !== `Bearer ${secret}`) return res.status(401).json({ error: "unauthorized" });
